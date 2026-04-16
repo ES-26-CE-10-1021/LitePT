@@ -1,3 +1,5 @@
 data
 exp
 *.so
+**/build
+*.egg-info/
