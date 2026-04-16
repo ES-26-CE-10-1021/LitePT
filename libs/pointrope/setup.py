@@ -1,33 +1,34 @@
-
+import os
+import torch
 from setuptools import setup
-from torch import cuda
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
-# compile for all possible CUDA architectures
-# all_cuda_archs = cuda.get_gencode_flags().replace('compute=','arch=').split()
-# alternatively, you can list cuda archs that you want, eg:
-# check https://developer.nvidia.com/cuda-gpus to find your arch
-all_cuda_archs = [
-    #'-gencode', 'arch=compute_90,code=sm_90',
-    # '-gencode', 'arch=compute_75,code=sm_75',
-    '-gencode', 'arch=compute_80,code=sm_80',
-    # '-gencode', 'arch=compute_86,code=sm_86'
-]
+# Get the path to the torch/lib directory where libc10.so lives
+# This ensures we can bake the RPATH into the binary
+lib_dir = os.path.join(os.path.dirname(torch.__file__), "lib")
 
 setup(
-    name = 'pointrope',
-    ext_modules = [
+    name='pointrope',
+    ext_modules=[
         CUDAExtension(
-                name='pointrope',
-                sources=[
-                    "pointrope.cpp",
-                    "kernels.cu",
-                ],
-                extra_compile_args = dict(
-                    nvcc=['-O3','--ptxas-options=-v',"--use_fast_math"]+all_cuda_archs, 
-                    cxx=['-O3'])
-                )
+            name='pointrope',
+            sources=[
+                "pointrope.cpp",
+                "kernels.cu",
+            ],
+            # We omit all_cuda_archs here. 
+            # CUDAExtension automatically respects the TORCH_CUDA_ARCH_LIST 
+            # environment variable if it is set in your shell.
+            extra_compile_args={
+                'nvcc': ['-O3', '--ptxas-options=-v', '--use_fast_math'],
+                'cxx': ['-O3']
+            },
+            # This embeds the path to PyTorch libraries so the OS can find libc10.so
+            extra_link_args=[f'-Wl,-rpath,{lib_dir}'],
+            runtime_library_dirs=[lib_dir]
+        )
     ],
-    cmdclass = {
+    cmdclass={
         'build_ext': BuildExtension
-    })
+    }
+)
